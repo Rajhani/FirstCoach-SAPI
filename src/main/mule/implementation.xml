@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="d78473dd-724e-409e-9f33-bea0b7cddbec">
+		<http:request-connection connectionIdleTimeout="900000" host="firstcoachexternalsystem.us-e2.cloudhub.io"/>
+	</http:request-config>
+	<flow name="getRoutes" doc:id="03a57898-ee91-4489-a533-6cf60665dba0" >
+		<logger level="INFO" doc:name="Logger" doc:id="2d4fa87b-9781-46d0-a08a-be0dfa049563" message="Connecting to External System"/>
+		<http:request method="GET" doc:name="Request" doc:id="47430c7e-636f-43d4-8ac2-4081c86fd8e0" config-ref="HTTP_Request_configuration" path="/fetchRoutes "/>
+		<ee:transform doc:name="Transform Message" doc:id="1e535124-7827-4e99-8d10-59e0f54c9601" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload map ( payload01 , indexOfPayload01 ) -> {
+	originLocation: {
+		locationCode: payload01.departureLocationCode
+	},
+	destinationLocation: {
+		locationCode: payload01.arrivalLocationCode
+	}
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="db66af81-af27-42ae-b6f7-d26a62fc5e61" message="#[payload]"/>
+	</flow>
+	<flow name="getSchedules" doc:id="56a114b3-b7b7-4253-9537-d9a4c514acab" >
+		<logger level="INFO" doc:name="Logger" doc:id="e6862edb-7634-486f-85ae-69522376ed2f" message="Connecting to External System"/>
+		<http:request method="POST" doc:name="Request" doc:id="2e4a4b83-562b-44bb-9234-a9c98d0f8985" config-ref="HTTP_Request_configuration" path="/fetchSchedules"/>
+		<ee:transform doc:name="Transform Message" doc:id="a55eea01-db74-4ce3-890b-5cbd44a87c96" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	departureSchedules: payload.schedules map ( schedule , indexOfSchedule ) -> {
+		availableSeats: schedule.availableSeats,
+		departureDateTime: schedule.departureDateTime,
+		travelRoute: {
+			destinationLocation: {
+				locationCode: schedule.toLocation
+			},
+			originLocation: {
+				locationCode: schedule.fromLocation
+			}
+		}
+	}
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="77948bd5-076a-4f87-ac24-db47b6e56500" message="#[payload]"/>
+		<error-handler>
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="0a65513a-0a00-4305-826b-385e49ca780a" >
+				<logger level="INFO" doc:name="Logger" doc:id="39dbb82a-899c-4a6a-89b8-f6c41fca196c" message="#[payload]"/>
+			</on-error-continue>
+		</error-handler>
+	</flow>
+</mule>
